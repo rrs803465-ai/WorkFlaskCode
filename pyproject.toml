@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workflaskcode"
+dynamic = ["version"]
+description = "Open-source terminal AI coding agent. Your code. Your models. Your workflow."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "WorkFlaskCode contributors" }]
+keywords = ["ai", "coding-agent", "cli", "llm", "terminal"]
+dependencies = ["pydantic>=2.5,<3"]
+
+[project.optional-dependencies]
+ui = ["rich>=13", "prompt_toolkit>=3.0.40"]
+keyring = ["keyring>=24"]
+browser = ["playwright>=1.40"]
+dev = ["ruff>=0.4"]
+
+[tool.setuptools.dynamic]
+version = { attr = "workflaskcode.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["workflaskcode*"]
+
+[tool.setuptools.package-data]
+workflaskcode = ["builtin_skills/**/*"]
+
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "B904", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+"workflaskcode.py" = ["UP036", "UP031"]

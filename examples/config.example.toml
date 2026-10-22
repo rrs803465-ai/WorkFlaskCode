@@ -1,0 +1,14 @@
+default_provider = "openrouter"
+
+[providers.openrouter]
+kind = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+env_var = "OPENROUTER_API_KEY"
+allow_paid = false
+
+[permissions]
+mode = "approve_risky"
+
+[coding_model]
+provider = "openrouter"
+model_id = "choose-from-@models"

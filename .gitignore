@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Secrets and runtime state - never commit
+.env
+.env.*
+*.key
+credentials.json
+secrets.*
+.workflaskcode/state.json
+.workflaskcode/handoff.md
+.workflaskcode/sessions/
+.workflaskcode/backups/
+.workflaskcode/*.db
+.workflaskcode/*.db-wal
+.workflaskcode/*.db-shm
+agent.db
+agent.db-*
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

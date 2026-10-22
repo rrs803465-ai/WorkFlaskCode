@@ -1,0 +1,4 @@
+name = "word-count"
+version = "0.1.0"
+description = "Adds an @wc command that counts words"
+permissions = ["commands"]
