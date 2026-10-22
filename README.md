@@ -1,3 +1,6 @@
+
+Ik this is vibecoded so I am greatly sorry
+
 # WorkFlaskCode
 
 An open-source AI coding agent for your terminal. Bring your own model: OpenRouter, any OpenAI-compatible endpoint, Anthropic, or a local server. WorkFlaskCode edits your project, runs your tests, keeps a task ledger that survives crashes and model switches, and never marks work done without evidence.
