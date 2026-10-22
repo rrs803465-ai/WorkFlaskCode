@@ -10,6 +10,8 @@ An open-source AI coding agent for your terminal. Bring your own model: OpenRout
 - Works on Linux, macOS and Windows terminals. See [docs/platforms.md](docs/platforms.md) for what has and has not been tested.
 
 ![WorkFlaskCode In a Terminal](WorkFlaskCodeTERMINAL.jpg) 
+WorkflaskCode Terminal Being run in Windows Terminal
+
 
 ## Install and run
 
