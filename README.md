@@ -9,6 +9,8 @@ An open-source AI coding agent for your terminal. Bring your own model: OpenRout
 - The core needs just `pydantic`. `rich`, `prompt_toolkit`, `keyring` and `playwright` are optional and the app degrades cleanly without them.
 - Works on Linux, macOS and Windows terminals. See [docs/platforms.md](docs/platforms.md) for what has and has not been tested.
 
+![WorkFlaskCode In a Terminal](WorkFlaskCodeTERMINAL.jpg) 
+
 ## Install and run
 
 ```bash
