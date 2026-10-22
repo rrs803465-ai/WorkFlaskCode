@@ -16,7 +16,7 @@ WorkflaskCode Terminal Being run in Windows Terminal
 ## Install and run
 
 ```bash
-git clone <your fork or this repository>
+git clone https://github.com/rrs803465-ai/WorkFlaskCode.git
 cd WorkFlaskCode
 pip install -r requirements.txt
 python3 workflaskcode.py
@@ -74,7 +74,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Honest limitations
 
-- Static analysis (`@audit`, `@deadcode`, `@design-audit`) is heuristic. Findings state whether they are verified.
-- Plugins run inside the agent process. They are permission-gated and consent is revoked when their code changes, but they are not sandboxed.
-- The terminal UI paths for `rich`, `prompt_toolkit` and `keyring` are optional and have had less testing than the built-in fallbacks.
-- Provider behaviour was not verified against live APIs.
+- Some models (specially free) may not work cause of rate limit, that doesn't mean your API Key is blocked.
+- This is not a free AI, you need to configure your API Keys, it just acts as a terminal agent for your works.
+- Models might be slow.
+- Some dependency issues might occur, so see it.
+
+## Regarding any security risks
+
+The code is opensourced, so you can see the code inside and see any security risks you might face. 
+You have the complete right to alternate the code to your liking, but YOU MUST NOT POST IT AS YOUR OWN CODE. 
+We guarantee that no API keys are sent to an alternate server.
+
+# Thank you and have a Good Day!! 
