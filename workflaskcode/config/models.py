@@ -181,6 +181,38 @@ class BrowserSettings(BaseModel):
     startup_timeout_seconds: float = Field(default=30.0, gt=0)
 
 
+class TokenSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    saver: bool = True
+    keep_recent_turns: int = Field(default=4, ge=1, le=20)
+    old_output_chars: int = Field(default=700, ge=200, le=20_000)
+    max_output_chars: int = Field(default=12_000, ge=2_000, le=200_000)
+    gate_web_tools: bool = True
+
+
+class UpdateSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    check_on_start: bool = True
+    repo: str = "rrs803465-ai/WorkFlaskCode"
+    branch: str | None = None
+
+    @field_validator("repo")
+    @classmethod
+    def _repo_shape(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", value):
+            raise ValueError("repo must look like owner/name")
+        return value
+
+    @field_validator("branch")
+    @classmethod
+    def _branch_shape(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(r"[A-Za-z0-9_./-]{1,100}", value):
+            raise ValueError("branch contains unsupported characters")
+        return value
+
+
 class GitSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -224,6 +256,8 @@ class Settings(BaseModel):
     retry: RetryPolicy = Field(default_factory=RetryPolicy)
     limits: Limits = Field(default_factory=Limits)
     browser: BrowserSettings = Field(default_factory=BrowserSettings)
+    tokens: TokenSettings = Field(default_factory=TokenSettings)
+    updates: UpdateSettings = Field(default_factory=UpdateSettings)
     git: GitSettings = Field(default_factory=GitSettings)
     ui: UISettings = Field(default_factory=UISettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
