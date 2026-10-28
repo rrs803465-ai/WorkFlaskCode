@@ -5,27 +5,12 @@ import socket
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from workflaskcode.errors import WorkFlaskError
 from workflaskcode.security.permissions import filtered_env
 from workflaskcode.tools.process import IS_WINDOWS, terminate_tree
 from workflaskcode.utils.redact import redact
-
-INSTALL_HINT = "pip install playwright && python3 -m playwright install chromium"
-
-
-class BrowserUnavailable(WorkFlaskError):
-    pass
-
-
-def playwright_status() -> tuple[bool, str]:
-    try:
-        import playwright  # noqa: F401
-    except ImportError:
-        return False, f"Playwright is not installed. Enable it with: {INSTALL_HINT}"
-    return True, "playwright package importable (browser binaries are checked when a page is opened)"
 
 
 def port_open(host: str, port: int, timeout: float = 0.3) -> bool:
@@ -129,77 +114,32 @@ class DevServer:
         self.proc = None
 
 
-@dataclass
-class BrowserReport:
-    url: str
-    title: str | None = None
-    status: int | None = None
-    console_errors: list[str] = field(default_factory=list)
-    page_errors: list[str] = field(default_factory=list)
-    found: dict[str, bool] = field(default_factory=dict)
-    screenshot: str | None = None
-    failed_requests: list[str] = field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        return (
-            (self.status or 0) < 400
-            and not self.console_errors
-            and not self.page_errors
-            and all(self.found.values())
-        )
-
-    def render(self) -> str:
-        lines = [f"url: {self.url}", f"http status: {self.status}", f"title: {self.title!r}"]
-        for selector, present in self.found.items():
-            lines.append(f"selector {selector}: {'found' if present else 'MISSING'}")
-        lines += (
-            [f"console error: {e}" for e in self.console_errors]
-            + [f"page error: {e}" for e in self.page_errors]
-            + [f"failed request: {e}" for e in self.failed_requests]
-        )
-        if self.screenshot:
-            lines.append(f"screenshot: {self.screenshot}")
-        lines.append("result: " + ("PASS" if self.ok else "FAIL"))
-        return "\n".join(lines)
+SERVERS: dict[str, DevServer] = {}
 
 
-def browser_check(
-    url: str, *, selectors: list[str] | None = None, screenshot: Path | None = None, timeout: float = 20.0
-) -> BrowserReport:
-    ok, message = playwright_status()
-    if not ok:
-        raise BrowserUnavailable(message)
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
+def infer_port(argv: list[str], default: int = 0) -> int:
+    if default:
+        return default
+    for token in argv:
+        if token.isdigit() and 1024 <= int(token) <= 65535:
+            return int(token)
+        if token.startswith("--port=") and token[7:].isdigit():
+            return int(token[7:])
+    joined = " ".join(argv)
+    if "vite" in joined:
+        return 5173
+    if "flask" in joined:
+        return 5000
+    if "uvicorn" in joined or "http.server" in joined or "manage.py" in joined:
+        return 8000
+    return 3000
 
-    report = BrowserReport(url)
-    try:
-        with sync_playwright() as pw:
-            try:
-                browser = pw.chromium.launch()
-            except PlaywrightError as exc:
-                raise BrowserUnavailable(
-                    f"Chromium could not be launched ({str(exc).splitlines()[0]}). Install browsers with: python3 -m playwright install chromium"
-                ) from exc
-            try:
-                page = browser.new_page()
-                page.on(
-                    "console", lambda m: report.console_errors.append(m.text) if m.type == "error" else None
-                )
-                page.on("pageerror", lambda e: report.page_errors.append(str(e)))
-                page.on("requestfailed", lambda r: report.failed_requests.append(f"{r.method} {r.url}"))
-                response = page.goto(url, timeout=timeout * 1000, wait_until="load")
-                report.status = response.status if response else None
-                report.title = page.title()
-                for selector in selectors or []:
-                    report.found[selector] = page.query_selector(selector) is not None
-                if screenshot is not None:
-                    screenshot.parent.mkdir(parents=True, exist_ok=True)
-                    page.screenshot(path=str(screenshot), full_page=True)
-                    report.screenshot = str(screenshot)
-            finally:
-                browser.close()
-    except PlaywrightError as exc:
-        raise WorkFlaskError(f"browser check failed: {str(exc).splitlines()[0]}") from exc
-    return report
+
+def stop_all() -> int:
+    stopped = 0
+    for server in list(SERVERS.values()):
+        if server.running:
+            server.stop()
+            stopped += 1
+    SERVERS.clear()
+    return stopped
