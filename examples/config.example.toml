@@ -12,3 +12,14 @@ mode = "approve_risky"
 [coding_model]
 provider = "openrouter"
 model_id = "choose-from-@models"
+
+[tokens]
+saver = true
+keep_recent_turns = 4
+old_output_chars = 700
+max_output_chars = 12000
+gate_web_tools = true
+
+[updates]
+check_on_start = true
+repo = "rrs803465-ai/WorkFlaskCode"
