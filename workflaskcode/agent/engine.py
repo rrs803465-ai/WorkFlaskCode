@@ -15,6 +15,7 @@ from workflaskcode.agent.registry import (
     args_hash,
 )
 from workflaskcode.agent.router import ModelRouter
+from workflaskcode.agent.tokens import TokenSaver
 from workflaskcode.config.models import ModelRef, Settings
 from workflaskcode.errors import AllModelsExhausted, Cancelled, ProviderError, WorkFlaskError
 from workflaskcode.providers.types import Message
@@ -37,6 +38,8 @@ class RunResult:
     seconds: float = 0.0
     error: str | None = None
     failures: list[str] = field(default_factory=list)
+    tokens_saved: int = 0
+    tokens_raw: int = 0
 
     @property
     def ok(self) -> bool:
@@ -73,6 +76,7 @@ class AgentLoop:
         self.history: list[Message] = []
         self.lock = threading.RLock()
         self.active_model: ModelRef | None = None
+        self.saver = TokenSaver()
 
     def load_history(self) -> int:
         self.history = []
@@ -94,6 +98,12 @@ class AgentLoop:
     def reset_history(self) -> None:
         self.history = []
 
+    def _project_hint(self) -> str:
+        try:
+            return self.executor.ctx.project_info().summary()
+        except Exception:
+            return ""
+
     def compact_now(self, force: bool = True) -> tuple[int, int]:
         before = len(self.history)
         self.history = self.context.compact(self.history, self.state_summary(), force=force)
@@ -104,6 +114,12 @@ class AgentLoop:
         ctx = self.executor.ctx
         s = self.settings()
         ctx.extra.pop("finish_summary", None)
+        self.saver.configure(s.tokens)
+        saved_before = (
+            self.saver.stats.raw_tokens,
+            self.saver.stats.sent_tokens,
+            self.saver.stats.trimmed_chars,
+        )
         ctx.extra["recent_errors"] = []
         self._append(Message("user", request))
         requests = tool_calls = nudges = failed_tests = 0
@@ -136,12 +152,14 @@ class AgentLoop:
                     )
                     self.history = self.context.compact(self.history, self.state_summary())
                 access = self.allowed_access(mode)
-                tools = self.executor.registry.specs(access)
+                tools = self.saver.select_tools(
+                    self.executor.registry.specs(access), self.history, self._project_hint()
+                )
                 system = Message("system", self.system_prompt(mode))
                 task = ctx.ledger.current()
                 writer = self.console.stream_writer("main", "agent")
                 route = self.router.call(
-                    [system, *self.history],
+                    [system, *self.saver.view(self.history)],
                     tools=tools or None,
                     primary=self.model_for(mode),
                     task_id=task.id if task else None,
@@ -216,7 +234,14 @@ class AgentLoop:
                         status="ok" if outcome.ok else "err",
                         ms=outcome.duration_ms,
                     )
-                    self._append(Message("tool", outcome.content, tool_call_id=call.id, name=call.name))
+                    self._append(
+                        Message(
+                            "tool",
+                            self.saver.clean_output(call.name, outcome.content),
+                            tool_call_id=call.id,
+                            name=call.name,
+                        )
+                    )
                     if not outcome.ok:
                         ctx.extra.setdefault("recent_errors", []).append(
                             f"{call.name}: {outcome.content[:200]}"
@@ -264,6 +289,14 @@ class AgentLoop:
             result.status, result.error = "failed", str(exc)
         result.summary = ctx.extra.get("finish_summary") or final_text
         result.requests, result.tool_calls = requests, tool_calls
+        st = self.saver.stats
+        result.tokens_saved = max(
+            (st.raw_tokens - saved_before[0])
+            - (st.sent_tokens - saved_before[1])
+            + (st.trimmed_chars - saved_before[2]) // 4,
+            0,
+        )
+        result.tokens_raw = (st.raw_tokens - saved_before[0]) + (st.trimmed_chars - saved_before[2]) // 4
         result.seconds = time.monotonic() - started
         if result.status in ("cancelled", "paused", "limit", "failed"):
             ctx.ledger.pause_in_progress()
