@@ -5,11 +5,10 @@ import shutil
 import time
 from pathlib import Path
 
-from workflaskcode.browser.preview import BrowserUnavailable, DevServer, browser_check, playwright_status
+from workflaskcode.browser import BrowserUnavailable, WebBlocked, browser_check, playwright_status
+from workflaskcode.browser.preview import SERVERS, DevServer, infer_port
 from workflaskcode.commands.registry import Command, CommandContext, CommandError, CommandRegistry
 from workflaskcode.plugins.manager import PluginError
-
-_SERVERS: dict[str, DevServer] = {}
 
 
 def cmd_plugins(ctx: CommandContext) -> None:
@@ -110,21 +109,7 @@ def _detect_dev_command(ctx: CommandContext) -> tuple[list[str], int]:
             "no dev server command detected",
             hint="pass one: @preview start --cmd 'python3 -m http.server 8000' --port 8000",
         )
-    port = ctx.int_flag("port", 0)
-    if not port:
-        joined = " ".join(argv)
-        port = (
-            8000
-            if "http.server" in joined or "flask" in joined or "uvicorn" in joined
-            else 5000
-            if "flask" in joined
-            else 5173
-            if "vite" in joined
-            else 3000
-        )
-        for tok in argv:
-            if tok.isdigit() and 1024 <= int(tok) <= 65535:
-                port = int(tok)
+    port = infer_port(argv, ctx.int_flag("port", 0))
     return argv, port
 
 
@@ -132,7 +117,7 @@ def cmd_preview(ctx: CommandContext) -> None:
     c = ctx.console
     root = ctx.project()
     key = str(root)
-    server = _SERVERS.get(key)
+    server = SERVERS.get(key)
     sub = ctx.sub or "status"
     if sub == "status":
         ok, message = playwright_status()
@@ -161,7 +146,7 @@ def cmd_preview(ctx: CommandContext) -> None:
         server = DevServer(root, argv, port=port)
         with c.spinner("starting dev server"):
             url = server.start(ctx.rt.cancel_event)
-        _SERVERS[key] = server
+        SERVERS[key] = server
         c.ok(f"serving at {url} (loopback only)")
         return
     if sub == "stop":
@@ -169,7 +154,7 @@ def cmd_preview(ctx: CommandContext) -> None:
             c.dim("no dev server was started from this session")
             return
         server.stop()
-        _SERVERS.pop(key, None)
+        SERVERS.pop(key, None)
         c.ok("dev server stopped")
         return
     if sub == "check":
@@ -195,8 +180,10 @@ def cmd_preview(ctx: CommandContext) -> None:
         )
         try:
             with c.spinner("loading page in headless Chromium"):
-                report = browser_check(url, selectors=selectors, screenshot=shot)
-        except BrowserUnavailable as exc:
+                report = browser_check(
+                    url, selectors=selectors, screenshot=shot, allow_loopback=not ctx.flag("external")
+                )
+        except (BrowserUnavailable, WebBlocked) as exc:
             raise CommandError(str(exc)) from exc
         for line in report.render().splitlines():
             c.line("  " + line)
