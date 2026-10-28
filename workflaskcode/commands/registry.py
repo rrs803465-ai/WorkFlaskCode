@@ -292,10 +292,11 @@ def build_registry(extra: Sequence[dict[str, Any]] = ()) -> CommandRegistry:
         models_cmds,
         planning,
         project_cmds,
+        update_cmd,
     )
 
     registry = CommandRegistry()
-    for module in (general, models_cmds, planning, intel, project_cmds, design_cmds, extras):
+    for module in (general, models_cmds, planning, intel, project_cmds, design_cmds, extras, update_cmd):
         module.register(registry)
     for item in extra:
         handler = item["handler"]
