@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-USER_AGENT = "workflaskcode/0.1 (+https://github.com/OWNER/WorkFlaskCode)"
+USER_AGENT = "workflaskcode/0.3 (+https://github.com/rrs803465-ai/WorkFlaskCode)"
 
 
 class TransportError(Exception):
