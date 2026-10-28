@@ -20,6 +20,7 @@ from workflaskcode.logs import setup_logging
 from workflaskcode.ui.console import Console
 from workflaskcode.ui.picker import pick
 from workflaskcode.ui.reader import LineReader
+from workflaskcode.update.checker import UpdateNotifier
 from workflaskcode.wizard import SetupWizard
 from workflaskcode.workspace.project import detect_project
 
@@ -189,12 +190,16 @@ def interactive_session(
     interaction: TerminalInteraction,
     reader: LineReader,
     registry: CommandRegistry,
+    notifier: UpdateNotifier | None = None,
 ) -> int:
     seen: tuple[str, ...] = ()
     registry, seen = _sync_plugin_commands(rt, registry, seen)
     last_interrupt = 0.0
     while not rt.exit_requested:
         registry, seen = _sync_plugin_commands(rt, registry, seen)
+        late = notifier.take() if notifier else None
+        if late:
+            console.warn(late.headline())
         reader.completer = registry.complete
         try:
             line = reader.read(console.prompt_text(approving=rt.broker.has_pending()))
@@ -329,8 +334,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     hint='for scripts use: python3 workflaskcode.py run "task" --yes',
                 )
                 return EXIT_USAGE
-            _banner(rt, console, [])
-            code = interactive_session(rt, console, interaction, reader, registry)
+            notifier = UpdateNotifier(rt.http, rt.settings.updates, rt.home.root, rt.update_endpoints)
+            notifier.start()
+            found = notifier.wait(1.5)
+            _banner(rt, console, [found.headline()] if found else [])
+            code = interactive_session(rt, console, interaction, reader, registry, notifier)
     finally:
         rt.shutdown()
         if reader is not None:
