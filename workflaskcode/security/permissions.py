@@ -348,6 +348,9 @@ class PermissionPolicy:
     def remember(self, command_key: str) -> None:
         self._session_allowed.add(command_key)
 
+    def is_remembered(self, key: str) -> bool:
+        return key in self._session_allowed
+
     def classify_argv(self, argv: list[str]) -> tuple[Risk, str, list[str]]:
         if not argv:
             return Risk.FORBIDDEN, "empty command", []
