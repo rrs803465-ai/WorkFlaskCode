@@ -25,6 +25,7 @@ from workflaskcode.agent.registry import (
 )
 from workflaskcode.agent.router import ModelRouter
 from workflaskcode.agent.toolset import register_core_tools
+from workflaskcode.browser.preview import stop_all as stop_dev_servers
 from workflaskcode.config.credentials import CredentialStore
 from workflaskcode.config.models import ModelRef, PermissionMode, Settings
 from workflaskcode.config.paths import AgentHome
@@ -44,6 +45,7 @@ from workflaskcode.tasks.ledger import TaskLedger, TaskStatus
 from workflaskcode.tools.files import FileTools
 from workflaskcode.tools.process import GLOBAL_TRACKER
 from workflaskcode.ui.console import Console
+from workflaskcode.update.checker import Endpoints
 from workflaskcode.usage.tracker import UsageTracker
 from workflaskcode.utils.redact import register_secret
 from workflaskcode.workspace.guard import WorkspaceGuard
@@ -167,6 +169,8 @@ class Runtime:
         self.console = console
         self.interactive = interactive
         self.http = http
+        self.update_endpoints = Endpoints()
+        self.update_root: Path | None = None
         self.config = ConfigStore(self.home)
         self.global_settings: Settings = self.config.load_or_default()
         self.session_overrides: dict[str, Any] = {}
@@ -390,6 +394,7 @@ class Runtime:
             cancel=self.cancel_event,
             project_info=self.info,
             asker=self.broker.ask,
+            extra={"reports_dir": self.home.reports_dir},
         )
         self.registry = ToolRegistry()
         register_core_tools(self.registry)
@@ -634,6 +639,8 @@ class Runtime:
             result.seconds,
         )
         tail = f"{result.requests} request(s), {result.tool_calls} tool call(s), {result.seconds:.1f}s"
+        if result.tokens_saved >= 200 and result.tokens_raw:
+            tail += f"  ·  saved ~{result.tokens_saved:,} input tokens ({100 * result.tokens_saved // result.tokens_raw}%)"
         if result.status == "completed":
             if mode in ("coding", "plan"):
                 c.rule("done")
@@ -863,6 +870,7 @@ class Runtime:
             self.wait(10)
         if self.side is not None:
             self.side.cancel()
+        stop_dev_servers()
         GLOBAL_TRACKER.kill_all()
         if self.ctx is not None:
             try:
