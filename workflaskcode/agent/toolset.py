@@ -13,10 +13,12 @@ from workflaskcode.agent.registry import (
     ToolDef,
     ToolRegistry,
 )
+from workflaskcode.agent.webtools import web_tool_defs
 from workflaskcode.errors import PermissionDenied, ToolError
 from workflaskcode.security.permissions import ApprovalRequest
 from workflaskcode.tasks.ledger import TaskStatus
 from workflaskcode.testing.runner import parse_test_summary
+from workflaskcode.tools.codemap import CodeMap
 from workflaskcode.tools.process import run_process
 
 
@@ -34,11 +36,7 @@ def _clip(text: str, n: int = 80) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-def run_checked(
-    ctx: ToolContext, *, argv: list[str] | None, shell: str | None, cwd: Path, timeout: float | None
-) -> Any:
-    settings = ctx.settings()
-    perms = settings.permissions
+def authorize_command(ctx: ToolContext, *, argv: list[str] | None, shell: str | None, cwd: Path) -> str:
     decision = ctx.policy.evaluate(argv=argv, shell=shell, cwd=cwd)
     display = shell if shell is not None else " ".join(shlex.quote(a) for a in argv or [])
     if decision.action == "deny":
@@ -67,6 +65,14 @@ def run_checked(
     ctx.db.audit(
         "command_run", {"command": display, "cwd": str(cwd), "risk": decision.risk.name}, ctx.session_id
     )
+    return display
+
+
+def run_checked(
+    ctx: ToolContext, *, argv: list[str] | None, shell: str | None, cwd: Path, timeout: float | None
+) -> Any:
+    perms = ctx.settings().permissions
+    authorize_command(ctx, argv=argv, shell=shell, cwd=cwd)
     return run_process(
         argv=argv,
         shell=shell,
@@ -100,6 +106,14 @@ def _h_search(ctx: ToolContext, a: dict[str, Any]) -> str:
         regex=bool(a.get("regex", False)),
         ignore_case=bool(a.get("ignore_case", False)),
     )
+
+
+def _h_repo_map(ctx: ToolContext, a: dict[str, Any]) -> str:
+    return CodeMap(ctx.files).repo_map(a.get("path", "."), int(a.get("max_files", 80)))
+
+
+def _h_read_symbol(ctx: ToolContext, a: dict[str, Any]) -> str:
+    return CodeMap(ctx.files).read_symbol(a["name"], a.get("path", "."))
 
 
 def _h_find_files(ctx: ToolContext, a: dict[str, Any]) -> str:
@@ -337,6 +351,22 @@ def register_core_tools(registry: ToolRegistry) -> None:
             lambda a: a.get("pattern", ""),
         ),
         ToolDef(
+            "repo_map",
+            "Compact outline of source files: every class, function and method with line numbers, without reading the files. Use it first to orient in an unfamiliar project; it costs far fewer tokens than reading files.",
+            _obj({"path": S, "max_files": INT}),
+            _h_repo_map,
+            ACCESS_READ,
+            lambda a: a.get("path", "."),
+        ),
+        ToolDef(
+            "read_symbol",
+            "Read just one function, method or class by name (Class.method works for Python) instead of the whole file. Much cheaper than read_file for large files; edits can follow directly.",
+            _obj({"name": S, "path": S}, ["name"]),
+            _h_read_symbol,
+            ACCESS_READ,
+            lambda a: a.get("name", ""),
+        ),
+        ToolDef(
             "find_files",
             "Find files by name glob such as '*.py' or 'src/**/test_*.py'.",
             _obj({"glob": S, "path": S}, ["glob"]),
@@ -478,8 +508,18 @@ def register_core_tools(registry: ToolRegistry) -> None:
             lambda a: _clip(a.get("summary", ""), 60),
         ),
     ]
-    for tool in tools:
+    for tool in [*tools, *web_tool_defs()]:
         registry.register(tool)
 
 
-READ_TOOLS = {"list_dir", "read_file", "search", "find_files", "find_symbol", "git_status", "git_diff"}
+READ_TOOLS = {
+    "list_dir",
+    "read_file",
+    "search",
+    "find_files",
+    "find_symbol",
+    "git_status",
+    "git_diff",
+    "repo_map",
+    "read_symbol",
+}
