@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Fixed minor issues and inconveniences regarding paths and codeplaces. Future update will push a better version of the token saver. 
+
 ## 0.3.0
 
 - Token saver: output normalisation, stale-read stubs, shortened old output, dropped bulky edit arguments, web-tool gating, web cache; `@tokens` and per-task savings line.
