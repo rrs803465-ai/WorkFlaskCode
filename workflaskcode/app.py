@@ -33,7 +33,7 @@ from workflaskcode.config.store import ConfigStore
 from workflaskcode.design import DesignLock
 from workflaskcode.errors import ConfigError, WorkFlaskError
 from workflaskcode.git import GitRepo
-from workflaskcode.http import HttpClient
+from workflaskcode.http import HttpClient, UrllibClient
 from workflaskcode.plugins import PluginManager, SkillIndex
 from workflaskcode.providers.catalog import ModelCatalog
 from workflaskcode.providers.registry import ProviderRegistry
@@ -168,7 +168,7 @@ class Runtime:
         self.home = home.ensure()
         self.console = console
         self.interactive = interactive
-        self.http = http
+        self.http = http or UrllibClient()
         self.update_endpoints = Endpoints()
         self.update_root: Path | None = None
         self.config = ConfigStore(self.home)
