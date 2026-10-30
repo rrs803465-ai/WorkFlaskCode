@@ -208,6 +208,20 @@ def latest_backup(backups_dir: Path) -> Path | None:
     return options[-1] if options else None
 
 
+def _is_dubious_ownership(stderr: str) -> bool:
+    return "detected dubious ownership" in stderr.lower()
+
+
+def _trust_safe_directory(git: str, root: Path, env: dict) -> None:
+    subprocess.run(
+        [git, "config", "--global", "--add", "safe.directory", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+
+
 def git_pull(root: Path, timeout: float = 120.0) -> str:
     git = shutil.which("git")
     if not git:
@@ -216,6 +230,11 @@ def git_pull(root: Path, timeout: float = 120.0) -> str:
     status = subprocess.run(
         [git, "-C", str(root), "status", "--porcelain"], capture_output=True, text=True, timeout=30, env=env
     )
+    if status.returncode != 0 and _is_dubious_ownership(status.stderr):
+        _trust_safe_directory(git, root, env)
+        status = subprocess.run(
+            [git, "-C", str(root), "status", "--porcelain"], capture_output=True, text=True, timeout=30, env=env
+        )
     if status.returncode != 0:
         raise UpdateError("could not read git status: " + status.stderr.strip()[:200])
     if status.stdout.strip():
@@ -226,6 +245,11 @@ def git_pull(root: Path, timeout: float = 120.0) -> str:
     pulled = subprocess.run(
         [git, "-C", str(root), "pull", "--ff-only"], capture_output=True, text=True, timeout=timeout, env=env
     )
+    if pulled.returncode != 0 and _is_dubious_ownership(pulled.stderr):
+        _trust_safe_directory(git, root, env)
+        pulled = subprocess.run(
+            [git, "-C", str(root), "pull", "--ff-only"], capture_output=True, text=True, timeout=timeout, env=env
+        )
     if pulled.returncode != 0:
         raise UpdateError("git pull failed: " + (pulled.stderr or pulled.stdout).strip()[:300])
     return pulled.stdout.strip()
